@@ -42,8 +42,15 @@ public class Registration implements Runnable {
                 throw new RuntimeException(e);
             }
             System.out.println(response.code());
+            if(response.code() != 200) {
+                try {
+                    System.out.println(response.errorBody().string());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
             try {
-                Thread.sleep(1000);
+                Thread.sleep(5000);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
