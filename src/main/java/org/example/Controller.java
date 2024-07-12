@@ -41,8 +41,9 @@ public class Controller implements Runnable {
         }*/
 
         while(true) {
+            List<Zpot> spawns;
             try {
-                getSpawns(api);
+                spawns = getSpawns(api);
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -53,54 +54,50 @@ public class Controller implements Runnable {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+
+            List<Attack> attacks = new ArrayList();
+            if(!changingEnvironmentResponse.zombies.isEmpty()) {
+                for(Zombie z : changingEnvironmentResponse.zombies) {
+                    Integer currentHealth = z.health;
+                    for(Block b : changingEnvironmentResponse.base) {
+                        if(Math.sqrt(Math.pow(z.x - b.x, 2) + Math.pow(z.y - b.y, 2)) < b.range) {
+                            attacks.add(new Attack(b.id, new Coords(z.x, z.y)));
+                            changingEnvironmentResponse.base.remove(b);
+                            if(currentHealth - b.attack <= 0) {
+                                break;
+                            } else {
+                                currentHealth -= b.attack;
+                            }
+                        }
+                    }
+                }
+            }
+
+
+
+
+
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
-
-            attack(api, changingEnvironmentResponse.zombies, changingEnvironmentResponse.base.get(0));
-            System.out.println();
         }
     }
 
-    void attack(Api api, List<Zombie> zombies, Block base) {
-        List<Attack> attacks = new ArrayList();
-
-        for(Zombie z : zombies) {
-            attacks.add(
-                    new Attack(base.id, new Coords(z.x, z.y))
-            );
-            break;
-        }
-        ActionsDTO actionsDTO = new ActionsDTO(
-            attacks, null, null
-        );
-
-        api.makeAction(actionsDTO, token);
-    }
-
-    void build(Api api, List<Coords> coords) {
+    void createBuild(Api api, List<Coords> coords) {
 
     }
+
+    void createMoveBase() {}
+
 
 
     ChangingEnvironmentResponse getChanging(Api api) throws IOException {
         return api.getChangingEnvironment(token).execute().body();
     }
 
-    void getSpawns(Api api) throws IOException, InterruptedException {
-        List<Zpot> zpotList;
-        try {
-            zpotList = api.getConstantEnvironment(token).execute().body().zpots;
-
-            System.out.println("COORDS");
-            for(Zpot zpot : zpotList) {
-                System.out.println(zpot.x + " " + zpot.y);
-            }
-            System.out.println("END COORDS");
-        } catch (NullPointerException e) {
-            System.out.println("ZPOTS NULL");
-        }
+    List<Zpot> getSpawns(Api api) throws IOException, InterruptedException {
+        return api.getConstantEnvironment(token).execute().body().zpots;
     }
 }
