@@ -3,6 +3,7 @@ package org.example;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import org.example.models.*;
+import org.example.responses.ActionsResponse;
 import org.example.responses.ChangingEnvironmentResponse;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
@@ -61,11 +62,30 @@ public class Controller implements Runnable {
             }
             if(zpots != null && changingEnvironmentResponse != null) {
                 builds = createBuild(changingEnvironmentResponse, zpots);
+            } else {
+                System.out.println("BUILD НЕВОЗМОЖЕН " + zpots + " " + changingEnvironmentResponse);
             }
-            api.makeAction(new ActionsDTO(attacks, builds, null), token);
+            try {
+                ActionsResponse actionsResponse = api.makeAction(new ActionsDTO(attacks, builds, null), token).execute().body();
+                if(actionsResponse != null) {
+                    if(actionsResponse.acceptedCommands.attack != null) {
+                        for(Attack a : actionsResponse.acceptedCommands.attack) {
+                            System.out.println("A " + a.target.x + " " + a.target.y);
+                        }
+                    } else { System.out.println("Accepted attacks null");}
+                    if(actionsResponse.acceptedCommands.build != null) {
+                        for(Build b : actionsResponse.acceptedCommands.build) {
+                            System.out.println("B " + b.coords.x + " " + b.coords.y);
+                        }
+                    } else { System.out.println("Accepted builds null");}
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
 
             try {
-                Thread.sleep(950);
+                Thread.sleep(1500);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -75,6 +95,30 @@ public class Controller implements Runnable {
     List<Attack> createAttack(ChangingEnvironmentResponse changingEnvironmentResponse) {
         List<Block> alreadyAttacked = new ArrayList<>();
         List<Attack> attacks = new ArrayList<>();
+
+        if(changingEnvironmentResponse.enemyBlocks != null) {
+            for(EnemyBlock e : changingEnvironmentResponse.enemyBlocks) {
+                if(e.isHead != null && e.isHead) {
+                    Integer currentHealth = e.health;
+                    for(Block b : changingEnvironmentResponse.base) {
+                        if(alreadyAttacked.contains(b)) {
+                            continue;
+                        }
+                        if(Math.sqrt(Math.pow(e.x - b.x, 2) + Math.pow(e.y - b.y, 2)) < b.range) {
+                            attacks.add(new Attack(b.id, new Coords(e.x, e.y)));
+                            alreadyAttacked.add(b);
+                            changingEnvironmentResponse.base.remove(b);
+                            if(currentHealth - b.attack <= 0) {
+                                break;
+                            } else {
+                                currentHealth -= b.attack;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if(changingEnvironmentResponse.zombies != null) {
             for(Zombie z : changingEnvironmentResponse.zombies) {
                 Integer currentHealth = z.health;
@@ -122,6 +166,7 @@ public class Controller implements Runnable {
     List<Build> createBuild(
                      ChangingEnvironmentResponse changingEnvironmentResponse,
                      List<Zpot> zpots) {
+        System.out.println("ЗАШЛИ В BUILD");
         List<Build> builds = new ArrayList<>();
         List<Coords> alreadyCheakedCells = new ArrayList<>();
         for(int i = 0; i < changingEnvironmentResponse.player.gold; i++) {
@@ -151,6 +196,16 @@ public class Controller implements Runnable {
 
                         if(!isGoodPlace) { continue; }
 
+                        for(Block b_another : changingEnvironmentResponse.base) {
+                            if(n.x == b_another.x && n.y == b_another.y) {
+                                isGoodPlace = false;
+                                alreadyCheakedCells.add(n);
+                                break;
+                            }
+                        }
+
+                        if(!isGoodPlace) { continue; }
+
                         for(Zpot z : zpots) {
                             if(n.x == z.x && n.y == z.y) {
                                 isGoodPlace = false;
@@ -160,9 +215,9 @@ public class Controller implements Runnable {
                             if(z.type == "default") {
                                 if(
                                         (z.x + 1 == n.x && z.y == n.y) ||
-                                                (z.x - 1 == n.x && z.y == n.y) ||
-                                                (z.y + 1 == n.y && z.x == n.x) ||
-                                                (z.y - 1 == n.y && z.x == n.x)
+                                        (z.x - 1 == n.x && z.y == n.y) ||
+                                        (z.y + 1 == n.y && z.x == n.x) ||
+                                        (z.y - 1 == n.y && z.x == n.x)
                                 ) {
                                     isGoodPlace = false;
                                     alreadyCheakedCells.add(n);
@@ -177,13 +232,13 @@ public class Controller implements Runnable {
                             for(EnemyBlock e : changingEnvironmentResponse.enemyBlocks) {
                                 if(
                                         (e.x + 1 == n.x && e.y == n.y) ||
-                                                (e.x - 1 == n.x && e.y == n.y) ||
-                                                (e.y + 1 == n.y && e.x == n.x) ||
-                                                (e.y - 1 == n.y && e.x == n.x) ||
-                                                (e.x + 1 == n.x && e.y + 1 == n.y) ||
-                                                (e.x - 1 == n.x && e.y - 1 == n.y) ||
-                                                (e.x + 1 == n.x && e.y - 1 == n.y) ||
-                                                (e.x - 1 == n.x && e.y + 1 == n.y)
+                                        (e.x - 1 == n.x && e.y == n.y) ||
+                                        (e.y + 1 == n.y && e.x == n.x) ||
+                                        (e.y - 1 == n.y && e.x == n.x) ||
+                                        (e.x + 1 == n.x && e.y + 1 == n.y) ||
+                                        (e.x - 1 == n.x && e.y - 1 == n.y) ||
+                                        (e.x + 1 == n.x && e.y - 1 == n.y) ||
+                                        (e.x - 1 == n.x && e.y + 1 == n.y)
                                 ) {
                                     isGoodPlace = false;
                                     alreadyCheakedCells.add(n);
@@ -199,7 +254,6 @@ public class Controller implements Runnable {
                     }
                 }
             } else { System.out.println("base is null");}
-
         }
 
         return builds;
@@ -208,8 +262,6 @@ public class Controller implements Runnable {
     void createMoveBase() {
 
     }
-
-
 
     ChangingEnvironmentResponse getChanging(Api api) throws IOException {
         return api.getChangingEnvironment(token).execute().body();
