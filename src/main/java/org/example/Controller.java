@@ -42,6 +42,8 @@ public class Controller implements Runnable {
             System.out.println(round.startAt + " " + round.endAt + " " + round.name);
         }*/
 
+        List<Block> prevBase = null;
+
         while(true) {
             List<Zpot> zpots;
             try {
@@ -55,6 +57,10 @@ public class Controller implements Runnable {
                 changingEnvironmentResponse = getChanging(api);
             } catch (IOException e) {
                 throw new RuntimeException(e);
+            }
+
+            if(prevBase == null && changingEnvironmentResponse != null) {
+                prevBase = changingEnvironmentResponse.base;
             }
 
             //ДЕБАХ
@@ -103,10 +109,12 @@ public class Controller implements Runnable {
                 attacks = createAttack(changingEnvironmentResponse);
             }
             if(zpots != null && changingEnvironmentResponse != null) {
-                builds = createBuild(changingEnvironmentResponse, zpots);
+                builds = createBuild(changingEnvironmentResponse, zpots, prevBase);
             } else {
                 System.out.println("BUILD НЕВОЗМОЖЕН " + zpots + " " + changingEnvironmentResponse);
             }
+
+
 
             //ДЕБАХ
             System.out.println("ЧТО ДОБАВИЛИ В БИЛД");
@@ -118,7 +126,11 @@ public class Controller implements Runnable {
             System.out.println();
 
             try {
-                ActionsResponse actionsResponse = api.makeAction(new ActionsDTO(attacks, builds, null), token).execute().body();
+                Coords move = null;
+                if(changingEnvironmentResponse != null && zpots != null) {
+                    move = createMoveBase(changingEnvironmentResponse);
+                }
+                ActionsResponse actionsResponse = api.makeAction(new ActionsDTO(attacks, builds, move), token).execute().body();
                 if(actionsResponse != null) {
                    /* if(actionsResponse.acceptedCommands.attack != null) {
                         for(Attack a : actionsResponse.acceptedCommands.attack) {
@@ -144,8 +156,6 @@ public class Controller implements Runnable {
             }
 
 
-
-
             try {
                 Thread.sleep(1500);
             } catch (InterruptedException e) {
@@ -157,6 +167,7 @@ public class Controller implements Runnable {
         }
     }
 
+    //ОРИГИНАЛЬНАЯ АТАКА
     List<Attack> createAttack(ChangingEnvironmentResponse changingEnvironmentResponse) {
         List<Block> alreadyAttacked = new ArrayList<>();
         List<Attack> attacks = new ArrayList<>();
@@ -183,6 +194,25 @@ public class Controller implements Runnable {
             }
         }
 
+        if(changingEnvironmentResponse.zombies != null) {
+            for(Zombie z : changingEnvironmentResponse.zombies) {
+                Integer currentHealth = z.health;
+                for(Block b : changingEnvironmentResponse.base) {
+                    if(alreadyAttacked.contains(b)) {
+                        continue;
+                    }
+                    if(Math.sqrt(Math.pow(z.x - b.x, 2) + Math.pow(z.y - b.y, 2)) < b.range) {
+                        attacks.add(new Attack(b.id, new Coords(z.x, z.y)));
+                        alreadyAttacked.add(b);
+                        if(currentHealth - b.attack <= 0) {
+                            break;
+                        } else {
+                            currentHealth -= b.attack;
+                        }
+                    }
+                }
+            }
+        }
 
         if(changingEnvironmentResponse.enemyBlocks != null) {
             for(EnemyBlock e : changingEnvironmentResponse.enemyBlocks) {
@@ -204,19 +234,33 @@ public class Controller implements Runnable {
             }
         }
 
-        if(changingEnvironmentResponse.zombies != null) {
-            for(Zombie z : changingEnvironmentResponse.zombies) {
-                Integer currentHealth = z.health;
-                for(Block b : changingEnvironmentResponse.base) {
-                    if(alreadyAttacked.contains(b)) {
-                        continue;
-                    }
-                    if(Math.sqrt(Math.pow(z.x - b.x, 2) + Math.pow(z.y - b.y, 2)) < b.range) {
-                        attacks.add(new Attack(b.id, new Coords(z.x, z.y)));
-                        alreadyAttacked.add(b);
-                        if(currentHealth - b.attack <= 0) {
-                            break;
-                        } else {
+        return attacks;
+    }
+
+    //GPT АТАКА
+   /* List<Attack> createAttack(ChangingEnvironmentResponse changingEnvironmentResponse) {
+        List<Block> alreadyAttacked = new ArrayList<>();
+        List<Attack> attacks = new ArrayList<>();
+
+        if (changingEnvironmentResponse.enemyBlocks != null) {
+            for (EnemyBlock e : changingEnvironmentResponse.enemyBlocks) {
+                if (e.isHead != null && e.isHead) {
+                    Integer currentHealth = e.health;
+                    // Создаем временный список блоков базы и сортируем его по расстоянию до объекта атаки
+                    List<Block> sortedBase = new ArrayList<>(changingEnvironmentResponse.base);
+                    sortedBase.sort((b1, b2) -> {
+                        double dist1 = Math.sqrt(Math.pow(e.x - b1.x, 2) + Math.pow(e.y - b1.y, 2));
+                        double dist2 = Math.sqrt(Math.pow(e.x - b2.x, 2) + Math.pow(e.y - b2.y, 2));
+                        return Double.compare(dist2, dist1); // Сортировка по убыванию расстояния
+                    });
+
+                    for (Block b : sortedBase) {
+                        if (!alreadyAttacked.contains(b) && Math.sqrt(Math.pow(e.x - b.x, 2) + Math.pow(e.y - b.y, 2)) < b.range) {
+                            attacks.add(new Attack(b.id, new Coords(e.x, e.y)));
+                            alreadyAttacked.add(b);
+                            if (currentHealth - b.attack <= 0) {
+                                break;
+                            }
                             currentHealth -= b.attack;
                         }
                     }
@@ -224,16 +268,155 @@ public class Controller implements Runnable {
             }
         }
 
+        if (changingEnvironmentResponse.zombies != null) {
+            for (Zombie z : changingEnvironmentResponse.zombies) {
+                Integer currentHealth = z.health;
+                // Создаем временный список блоков базы и сортируем его по расстоянию до объекта атаки
+                List<Block> sortedBase = new ArrayList<>(changingEnvironmentResponse.base);
+                sortedBase.sort((b1, b2) -> {
+                    double dist1 = Math.sqrt(Math.pow(z.x - b1.x, 2) + Math.pow(z.y - b1.y, 2));
+                    double dist2 = Math.sqrt(Math.pow(z.x - b2.x, 2) + Math.pow(z.y - b2.y, 2));
+                    return Double.compare(dist2, dist1); // Сортировка по убыванию расстояния
+                });
+
+                for (Block b : sortedBase) {
+                    if (!alreadyAttacked.contains(b) && Math.sqrt(Math.pow(z.x - b.x, 2) + Math.pow(z.y - b.y, 2)) < b.range) {
+                        attacks.add(new Attack(b.id, new Coords(z.x, z.y)));
+                        alreadyAttacked.add(b);
+                        if (currentHealth - b.attack <= 0) {
+                            break;
+                        }
+                        currentHealth -= b.attack;
+                    }
+                }
+            }
+        }
         return attacks;
-    }
+    }*/
+
 
     List<Coords> createBuild(
                      ChangingEnvironmentResponse changingEnvironmentResponse,
-                     List<Zpot> zpots) {
+                     List<Zpot> zpots,
+                     List<Block> prevBase) {
         System.out.println("ЗАШЛИ В BUILD");
         List<Coords> builds = new ArrayList<>();
         List<Coords> alreadyCheakedCells = new ArrayList<>();
         for(int i = 0; i < changingEnvironmentResponse.player.gold; i++) {
+            if(changingEnvironmentResponse.turn > 100) {
+                if(prevBase != null) {
+                    for(Block b_prev : prevBase) {
+                        boolean isStillAlive = false;
+                        for(Block b_now: changingEnvironmentResponse.base) {
+                            if(b_now == b_prev) {
+                                isStillAlive = true;
+                                break;
+                            }
+                        }
+                        if(!isStillAlive) {
+                            List<Coords> neighbors = new ArrayList<>();
+                            neighbors.add(new Coords(b_prev.x + 1, b_prev.y));
+                            neighbors.add(new Coords(b_prev.x - 1, b_prev.y));
+                            neighbors.add(new Coords(b_prev.x, b_prev.y + 1));
+                            neighbors.add(new Coords(b_prev.x, b_prev.y - 1));
+                            for(Coords n : neighbors) {
+                                boolean isAlredyCheaked = false;
+                                for (Coords c : alreadyCheakedCells) {
+                                    if (Objects.equals(c.x, n.x) && Objects.equals(c.y, n.y)) {
+                                        isAlredyCheaked = true;
+                                        break;
+                                    }
+                                }
+                                if (isAlredyCheaked) continue;
+
+                                boolean isGoodPlace = true;
+                                if (changingEnvironmentResponse.zombies != null) {
+                                    for (Zombie z : changingEnvironmentResponse.zombies) {
+                                        if (Objects.equals(n.x, z.x) && Objects.equals(n.y, z.y)) {
+                                            isGoodPlace = false;
+                                            alreadyCheakedCells.add(n);
+                                            System.out.println("НЕЛЬЗЯ ТК ЗОМБИ");
+                                            break;
+                                        }
+                                    }
+                                } else {
+                                    System.out.println("zombi is null");
+                                }
+
+                                if (!isGoodPlace) {
+                                    continue;
+                                }
+
+                                for (Block b_another : changingEnvironmentResponse.base) {
+                                    if (Objects.equals(n.x, b_another.x) && Objects.equals(n.y, b_another.y)) {
+                                        isGoodPlace = false;
+                                        alreadyCheakedCells.add(n);
+                                        System.out.println("НЕЛЬЗЯ ТК МЫ ЖЕ");
+                                        break;
+                                    }
+                                }
+
+                                if (!isGoodPlace) {
+                                    continue;
+                                }
+
+                                for (Zpot z : zpots) {
+                                    if (n.x == z.x && n.y == z.y) {
+                                        isGoodPlace = false;
+                                        alreadyCheakedCells.add(n);
+                                        break;
+                                    }
+                                    if (z.type == "default") {
+                                        if (
+                                                (z.x + 1 == n.x && z.y == n.y) ||
+                                                        (z.x - 1 == n.x && z.y == n.y) ||
+                                                        (z.y + 1 == n.y && z.x == n.x) ||
+                                                        (z.y - 1 == n.y && z.x == n.x)
+                                        ) {
+                                            isGoodPlace = false;
+                                            alreadyCheakedCells.add(n);
+                                            System.out.println("НЕЛЬЗЯ ТК СПАВНЕР");
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (!isGoodPlace) {
+                                    continue;
+                                }
+
+                                if (changingEnvironmentResponse.enemyBlocks != null) {
+                                    for (EnemyBlock e : changingEnvironmentResponse.enemyBlocks) {
+                                        if (
+                                                (e.x + 1 == n.x && e.y == n.y) ||
+                                                        (e.x - 1 == n.x && e.y == n.y) ||
+                                                        (e.y + 1 == n.y && e.x == n.x) ||
+                                                        (e.y - 1 == n.y && e.x == n.x) ||
+                                                        (e.x + 1 == n.x && e.y + 1 == n.y) ||
+                                                        (e.x - 1 == n.x && e.y - 1 == n.y) ||
+                                                        (e.x + 1 == n.x && e.y - 1 == n.y) ||
+                                                        (e.x - 1 == n.x && e.y + 1 == n.y)
+                                        ) {
+                                            isGoodPlace = false;
+                                            alreadyCheakedCells.add(n);
+                                            System.out.println("НЕЛЬЗЯ ТК ПРОТИВНИК");
+                                            break;
+                                        }
+                                    }
+                                } else {
+                                    System.out.println("enemy blocks is null");
+                                }
+
+                                if (isGoodPlace) {
+                                    builds.add(new Coords(n.x, n.y));
+                                }
+                                alreadyCheakedCells.add(n);
+                            }
+                        }
+                    }
+                }
+            }
+
             if(changingEnvironmentResponse.base != null) {
                 for(Block b : changingEnvironmentResponse.base) {
                     List<Coords> neighbors = new ArrayList<>();
@@ -248,7 +431,6 @@ public class Controller implements Runnable {
                                 isAlredyCheaked = true;
                                 break;
                             }
-                            if(isAlredyCheaked) break;
                         }
                         if(isAlredyCheaked) continue;
 
@@ -334,9 +516,8 @@ public class Controller implements Runnable {
         return builds;
     }
 
-    Coords createMoveBase(ChangingEnvironmentResponse changingEnvironmentResponse,
-                          List<Zpot> zpots) {
-        Block[] base=new Block[4];
+    Coords createMoveBase(ChangingEnvironmentResponse changingEnvironmentResponse) {
+        Block base=null;
         int x=0;
         int y=0;
         int i=0;
@@ -344,50 +525,61 @@ public class Controller implements Runnable {
         Boolean right=false;
         Boolean up= false;
         Boolean down=false;
-        for(Block block : changingEnvironmentResponse.base) {
-            if (block.isHead=true){
-                base[i]= block;
-                i++;
+        if(changingEnvironmentResponse.base != null) {
+            for(Block block : changingEnvironmentResponse.base) {
+                if (block.isHead=true){
+                    base = block;
+                    i++;
+                }
             }
         }
-        for (EnemyBlock enemyBlock :changingEnvironmentResponse.enemyBlocks){
-            if((enemyBlock.x - base[0].x)<5){
-                left=true;
-            }
-            if((enemyBlock.x - base[3].x)< -5){
-                right=true;
-            }
-            if((enemyBlock.y - base[0].y)<5){
-                down=true;
-            }
-            if((enemyBlock.y - base[3].y)< -5){
-                up=true;
-            }
 
-        }
-        for (Zombie zombie: changingEnvironmentResponse.zombies){
-            if(zombie.type.equals("juggernaut ")){
-                if(zombie.direction.equals("left")){
+        if (changingEnvironmentResponse.enemyBlocks != null) {
+            for (EnemyBlock enemyBlock :changingEnvironmentResponse.enemyBlocks){
+                if((enemyBlock.x - base.x)<5){
                     left=true;
                 }
-                if(zombie.direction.equals("right")){
+                if((enemyBlock.x - base.x)< -5){
                     right=true;
                 }
-                if(zombie.direction.equals("down")){
+                if((enemyBlock.y - base.y)<5){
                     down=true;
                 }
-                if(zombie.direction.equals("up")){
+                if((enemyBlock.y - base.y)< -5){
                     up=true;
+                }
+
+            }
+        }
+
+        if(changingEnvironmentResponse.zombies != null) {
+            for (Zombie zombie: changingEnvironmentResponse.zombies){
+                if(zombie.type.equals("juggernaut ")){
+                    if(zombie.direction.equals("left")){
+                        left=true;
+                    }
+                    if(zombie.direction.equals("right")){
+                        right=true;
+                    }
+                    if(zombie.direction.equals("down")){
+                        down=true;
+                    }
+                    if(zombie.direction.equals("up")){
+                        up=true;
+                    }
                 }
             }
         }
+
         if(left){x-=3;}
         if(right){x+=3;}
         if(down){y-=3;}
         if(up){y+=3;}
-        for(Block block : changingEnvironmentResponse.base){
-            if(block.x.equals(x)&(block.y.equals(y))){
-                return new Coords(x,y);
+        if(changingEnvironmentResponse.base != null) {
+            for(Block block : changingEnvironmentResponse.base){
+                if(block.x.equals(x)&(block.y.equals(y))){
+                    return new Coords(x,y);
+                }
             }
         }
         return null;
