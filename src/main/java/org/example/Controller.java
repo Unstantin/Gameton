@@ -41,9 +41,9 @@ public class Controller implements Runnable {
         }*/
 
         while(true) {
-            List<Zpot> spawns;
+            List<Zpot> zpots;
             try {
-                spawns = getSpawns(api);
+                zpots = getZpots(api);
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -54,42 +54,160 @@ public class Controller implements Runnable {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-
-            List<Attack> attacks = new ArrayList();
-            if(!changingEnvironmentResponse.zombies.isEmpty()) {
-                for(Zombie z : changingEnvironmentResponse.zombies) {
-                    Integer currentHealth = z.health;
-                    for(Block b : changingEnvironmentResponse.base) {
-                        if(Math.sqrt(Math.pow(z.x - b.x, 2) + Math.pow(z.y - b.y, 2)) < b.range) {
-                            attacks.add(new Attack(b.id, new Coords(z.x, z.y)));
-                            changingEnvironmentResponse.base.remove(b);
-                            if(currentHealth - b.attack <= 0) {
-                                break;
-                            } else {
-                                currentHealth -= b.attack;
-                            }
-                        }
-                    }
-                }
+            List<Attack> attacks = null;
+            List<Build> builds = null;
+            if(changingEnvironmentResponse != null) {
+                attacks = createAttack(changingEnvironmentResponse);
             }
-
-
-
-
+            if(zpots != null && changingEnvironmentResponse != null) {
+                builds = createBuild(changingEnvironmentResponse, zpots);
+            }
+            api.makeAction(new ActionsDTO(attacks, builds, null), token);
 
             try {
-                Thread.sleep(1000);
+                Thread.sleep(950);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }
     }
 
-    void createBuild(Api api, List<Coords> coords) {
+    List<Attack> createAttack(ChangingEnvironmentResponse changingEnvironmentResponse) {
+        List<Block> alreadyAttacked = new ArrayList<>();
+        List<Attack> attacks = new ArrayList<>();
+        if(changingEnvironmentResponse.zombies != null) {
+            for(Zombie z : changingEnvironmentResponse.zombies) {
+                Integer currentHealth = z.health;
+                for(Block b : changingEnvironmentResponse.base) {
+                    if(alreadyAttacked.contains(b)) {
+                        continue;
+                    }
+                    if(Math.sqrt(Math.pow(z.x - b.x, 2) + Math.pow(z.y - b.y, 2)) < b.range) {
+                        attacks.add(new Attack(b.id, new Coords(z.x, z.y)));
+                        alreadyAttacked.add(b);
+                        if(currentHealth - b.attack <= 0) {
+                            break;
+                        } else {
+                            currentHealth -= b.attack;
+                        }
+                    }
+                }
+            }
+        }
 
+        if(changingEnvironmentResponse.enemyBlocks != null) {
+            for(EnemyBlock e : changingEnvironmentResponse.enemyBlocks) {
+                Integer currentHealth = e.health;
+                for(Block b : changingEnvironmentResponse.base) {
+                    if(alreadyAttacked.contains(b)) {
+                        continue;
+                    }
+                    if(Math.sqrt(Math.pow(e.x - b.x, 2) + Math.pow(e.y - b.y, 2)) < b.range) {
+                        attacks.add(new Attack(b.id, new Coords(e.x, e.y)));
+                        alreadyAttacked.add(b);
+                        changingEnvironmentResponse.base.remove(b);
+                        if(currentHealth - b.attack <= 0) {
+                            break;
+                        } else {
+                            currentHealth -= b.attack;
+                        }
+                    }
+                }
+            }
+        }
+
+        return attacks;
     }
 
-    void createMoveBase() {}
+    List<Build> createBuild(
+                     ChangingEnvironmentResponse changingEnvironmentResponse,
+                     List<Zpot> zpots) {
+        List<Build> builds = new ArrayList<>();
+        List<Coords> alreadyCheakedCells = new ArrayList<>();
+        for(int i = 0; i < changingEnvironmentResponse.player.gold; i++) {
+            if(changingEnvironmentResponse.base != null) {
+                for(Block b : changingEnvironmentResponse.base) {
+                    List<Coords> neighbors = new ArrayList<>();
+                    neighbors.add(new Coords(b.x + 1, b.y));
+                    neighbors.add(new Coords(b.x - 1, b.y));
+                    neighbors.add(new Coords(b.x, b.y + 1));
+                    neighbors.add(new Coords(b.x, b.y - 1));
+                    for(Coords n : neighbors) {
+                        if(alreadyCheakedCells.contains(n)) {
+                            continue;
+                        }
+                        boolean isGoodPlace = true;
+                        if (changingEnvironmentResponse.zombies != null) {
+                            for(Zombie z : changingEnvironmentResponse.zombies) {
+                                if(n.x == z.x && n.y == z.y) {
+                                    isGoodPlace = false;
+                                    alreadyCheakedCells.add(n);
+                                    break;
+                                }
+                            }
+                        } else {
+                            System.out.println("zombi is null");
+                        }
+
+                        if(!isGoodPlace) { continue; }
+
+                        for(Zpot z : zpots) {
+                            if(n.x == z.x && n.y == z.y) {
+                                isGoodPlace = false;
+                                alreadyCheakedCells.add(n);
+                                break;
+                            }
+                            if(z.type == "default") {
+                                if(
+                                        (z.x + 1 == n.x && z.y == n.y) ||
+                                                (z.x - 1 == n.x && z.y == n.y) ||
+                                                (z.y + 1 == n.y && z.x == n.x) ||
+                                                (z.y - 1 == n.y && z.x == n.x)
+                                ) {
+                                    isGoodPlace = false;
+                                    alreadyCheakedCells.add(n);
+                                    break;
+                                }
+                            }
+                        }
+
+                        if(!isGoodPlace) { continue; }
+
+                        if(changingEnvironmentResponse.enemyBlocks != null) {
+                            for(EnemyBlock e : changingEnvironmentResponse.enemyBlocks) {
+                                if(
+                                        (e.x + 1 == n.x && e.y == n.y) ||
+                                                (e.x - 1 == n.x && e.y == n.y) ||
+                                                (e.y + 1 == n.y && e.x == n.x) ||
+                                                (e.y - 1 == n.y && e.x == n.x) ||
+                                                (e.x + 1 == n.x && e.y + 1 == n.y) ||
+                                                (e.x - 1 == n.x && e.y - 1 == n.y) ||
+                                                (e.x + 1 == n.x && e.y - 1 == n.y) ||
+                                                (e.x - 1 == n.x && e.y + 1 == n.y)
+                                ) {
+                                    isGoodPlace = false;
+                                    alreadyCheakedCells.add(n);
+                                    break;
+                                }
+                            }
+                        } else { System.out.println("enemy blocks is null"); }
+
+                        if(isGoodPlace) {
+                            builds.add(new Build(n));
+                        }
+                        alreadyCheakedCells.add(n);
+                    }
+                }
+            } else { System.out.println("base is null");}
+
+        }
+
+        return builds;
+    }
+
+    void createMoveBase() {
+
+    }
 
 
 
@@ -97,7 +215,13 @@ public class Controller implements Runnable {
         return api.getChangingEnvironment(token).execute().body();
     }
 
-    List<Zpot> getSpawns(Api api) throws IOException, InterruptedException {
-        return api.getConstantEnvironment(token).execute().body().zpots;
+    List<Zpot> getZpots(Api api) throws IOException, InterruptedException, NullPointerException {
+        try {
+            return api.getConstantEnvironment(token).execute().body().zpots;
+        } catch (NullPointerException e) {
+            System.out.println("zpots is null");
+        }
+
+        return null;
     }
 }
