@@ -11,6 +11,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Properties;
 
 public class Controller implements Runnable {
@@ -55,8 +56,49 @@ public class Controller implements Runnable {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+
+            //ДЕБАХ
+            /*if(changingEnvironmentResponse != null && zpots != null) {
+                System.out.println("\nНаша база");
+                try {
+                    for(Block b: changingEnvironmentResponse.base) {
+                        System.out.print("(" + b.x + " " + b.y + ") ");
+                    }
+                } catch(NullPointerException e) {
+                    System.out.println("enemy blocks null");
+                }
+
+                System.out.println("\nБазы противника");
+                try {
+                    for(EnemyBlock b: changingEnvironmentResponse.enemyBlocks) {
+                        System.out.print("(" + b.x + " " + b.y + ") ");
+                    }
+                } catch(NullPointerException e) {
+                    System.out.println("enemy blocks null");
+                }
+
+                System.out.println("\nЗомби");
+                try {
+                    for(Zombie z: changingEnvironmentResponse.zombies) {
+                        System.out.print("(" + z.x + " " + z.y + ") ");
+                    }
+                } catch (NullPointerException e) {
+                    System.out.println("zombie is null");
+                }
+
+                System.out.println("\nспавны и стены");
+                try {
+                    for(Zpot z: zpots) {
+                        System.out.print("(" + z.x + " " + z.y + ") ");
+                    }
+                } catch (NullPointerException e) {
+                    System.out.println("спотов нет");
+                }
+
+            } else { System.out.println("ДЕБАГ ПОКА ВСЕ ПУСТО");}*/
+
             List<Attack> attacks = null;
-            List<Build> builds = null;
+            List<Coords> builds = null;
             if(changingEnvironmentResponse != null) {
                 attacks = createAttack(changingEnvironmentResponse);
             }
@@ -65,10 +107,20 @@ public class Controller implements Runnable {
             } else {
                 System.out.println("BUILD НЕВОЗМОЖЕН " + zpots + " " + changingEnvironmentResponse);
             }
+
+            //ДЕБАХ
+            System.out.println("ЧТО ДОБАВИЛИ В БИЛД");
+            if(builds != null) {
+                for(Coords b: builds) {
+                    System.out.print("(" + b.x + " " + b.y + ") ");
+                }
+            } else { System.out.println("БИЛД НЕ СУЩЕСТВУЕТ ВООБЩЕ"); }
+            System.out.println();
+
             try {
                 ActionsResponse actionsResponse = api.makeAction(new ActionsDTO(attacks, builds, null), token).execute().body();
                 if(actionsResponse != null) {
-                    if(actionsResponse.acceptedCommands.attack != null) {
+                   /* if(actionsResponse.acceptedCommands.attack != null) {
                         for(Attack a : actionsResponse.acceptedCommands.attack) {
                             System.out.println("A " + a.target.x + " " + a.target.y);
                         }
@@ -77,11 +129,21 @@ public class Controller implements Runnable {
                         for(Build b : actionsResponse.acceptedCommands.build) {
                             System.out.println("B " + b.coords.x + " " + b.coords.y);
                         }
-                    } else { System.out.println("Accepted builds null");}
+                    } else { System.out.println("Accepted builds null");}*/
                 }
+                System.out.println("ОШИБКИ:");
+                if(actionsResponse != null && actionsResponse.errors != null) {
+                    for(String err : actionsResponse.errors) {
+                        System.out.println(err);
+                    }
+                } else { System.out.println("ОШИБОК НЕТ");}
+
             } catch (IOException e) {
+                System.out.println("ЧЕ ТО НЕ ТАК С ОТПРАВКОЙ ACTIONS");
                 throw new RuntimeException(e);
             }
+
+
 
 
             try {
@@ -89,6 +151,9 @@ public class Controller implements Runnable {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
+
+            System.out.println();
+            System.out.println();
         }
     }
 
@@ -149,7 +214,6 @@ public class Controller implements Runnable {
                     if(Math.sqrt(Math.pow(e.x - b.x, 2) + Math.pow(e.y - b.y, 2)) < b.range) {
                         attacks.add(new Attack(b.id, new Coords(e.x, e.y)));
                         alreadyAttacked.add(b);
-                        changingEnvironmentResponse.base.remove(b);
                         if(currentHealth - b.attack <= 0) {
                             break;
                         } else {
@@ -163,11 +227,11 @@ public class Controller implements Runnable {
         return attacks;
     }
 
-    List<Build> createBuild(
+    List<Coords> createBuild(
                      ChangingEnvironmentResponse changingEnvironmentResponse,
                      List<Zpot> zpots) {
         System.out.println("ЗАШЛИ В BUILD");
-        List<Build> builds = new ArrayList<>();
+        List<Coords> builds = new ArrayList<>();
         List<Coords> alreadyCheakedCells = new ArrayList<>();
         for(int i = 0; i < changingEnvironmentResponse.player.gold; i++) {
             if(changingEnvironmentResponse.base != null) {
@@ -178,15 +242,23 @@ public class Controller implements Runnable {
                     neighbors.add(new Coords(b.x, b.y + 1));
                     neighbors.add(new Coords(b.x, b.y - 1));
                     for(Coords n : neighbors) {
-                        if(alreadyCheakedCells.contains(n)) {
-                            continue;
+                        boolean isAlredyCheaked = false;
+                        for(Coords c : alreadyCheakedCells) {
+                            if(Objects.equals(c.x, n.x) && Objects.equals(c.y, n.y)) {
+                                isAlredyCheaked = true;
+                                break;
+                            }
+                            if(isAlredyCheaked) break;
                         }
+                        if(isAlredyCheaked) continue;
+
                         boolean isGoodPlace = true;
-                        if (changingEnvironmentResponse.zombies != null) {
+                        if(changingEnvironmentResponse.zombies != null) {
                             for(Zombie z : changingEnvironmentResponse.zombies) {
-                                if(n.x == z.x && n.y == z.y) {
+                                if(Objects.equals(n.x, z.x) && Objects.equals(n.y, z.y)) {
                                     isGoodPlace = false;
                                     alreadyCheakedCells.add(n);
+                                    System.out.println("НЕЛЬЗЯ ТК ЗОМБИ");
                                     break;
                                 }
                             }
@@ -197,9 +269,10 @@ public class Controller implements Runnable {
                         if(!isGoodPlace) { continue; }
 
                         for(Block b_another : changingEnvironmentResponse.base) {
-                            if(n.x == b_another.x && n.y == b_another.y) {
+                            if(Objects.equals(n.x, b_another.x) && Objects.equals(n.y, b_another.y)) {
                                 isGoodPlace = false;
                                 alreadyCheakedCells.add(n);
+                                System.out.println("НЕЛЬЗЯ ТК МЫ ЖЕ");
                                 break;
                             }
                         }
@@ -221,6 +294,7 @@ public class Controller implements Runnable {
                                 ) {
                                     isGoodPlace = false;
                                     alreadyCheakedCells.add(n);
+                                    System.out.println("НЕЛЬЗЯ ТК СПАВНЕР");
                                     break;
                                 }
                             }
@@ -242,13 +316,14 @@ public class Controller implements Runnable {
                                 ) {
                                     isGoodPlace = false;
                                     alreadyCheakedCells.add(n);
+                                    System.out.println("НЕЛЬЗЯ ТК ПРОТИВНИК");
                                     break;
                                 }
                             }
                         } else { System.out.println("enemy blocks is null"); }
 
                         if(isGoodPlace) {
-                            builds.add(new Build(n));
+                            builds.add(new Coords(n.x, n.y));
                         }
                         alreadyCheakedCells.add(n);
                     }
@@ -259,8 +334,63 @@ public class Controller implements Runnable {
         return builds;
     }
 
-    void createMoveBase() {
+    Coords createMoveBase(ChangingEnvironmentResponse changingEnvironmentResponse,
+                          List<Zpot> zpots) {
+        Block[] base=new Block[4];
+        int x=0;
+        int y=0;
+        int i=0;
+        Boolean left=false;
+        Boolean right=false;
+        Boolean up= false;
+        Boolean down=false;
+        for(Block block : changingEnvironmentResponse.base) {
+            if (block.isHead=true){
+                base[i]= block;
+                i++;
+            }
+        }
+        for (EnemyBlock enemyBlock :changingEnvironmentResponse.enemyBlocks){
+            if((enemyBlock.x - base[0].x)<5){
+                left=true;
+            }
+            if((enemyBlock.x - base[3].x)< -5){
+                right=true;
+            }
+            if((enemyBlock.y - base[0].y)<5){
+                down=true;
+            }
+            if((enemyBlock.y - base[3].y)< -5){
+                up=true;
+            }
 
+        }
+        for (Zombie zombie: changingEnvironmentResponse.zombies){
+            if(zombie.type.equals("juggernaut ")){
+                if(zombie.direction.equals("left")){
+                    left=true;
+                }
+                if(zombie.direction.equals("right")){
+                    right=true;
+                }
+                if(zombie.direction.equals("down")){
+                    down=true;
+                }
+                if(zombie.direction.equals("up")){
+                    up=true;
+                }
+            }
+        }
+        if(left){x-=3;}
+        if(right){x+=3;}
+        if(down){y-=3;}
+        if(up){y+=3;}
+        for(Block block : changingEnvironmentResponse.base){
+            if(block.x.equals(x)&(block.y.equals(y))){
+                return new Coords(x,y);
+            }
+        }
+        return null;
     }
 
     ChangingEnvironmentResponse getChanging(Api api) throws IOException {
