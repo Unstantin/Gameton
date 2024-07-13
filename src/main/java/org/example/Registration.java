@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.util.Properties;
 
 public class Registration implements Runnable {
-    String BASE_URL = "https://games-test.datsteam.dev/";
+    String BASE_URL = "https://games.datsteam.dev/";
     String token = "";
 
     @Override

@@ -15,7 +15,7 @@ import java.util.Objects;
 import java.util.Properties;
 
 public class Controller implements Runnable {
-    String BASE_URL = "https://games-test.datsteam.dev/";
+    String BASE_URL = "https://games.datsteam.dev/";
     String token = "";
 
     @Override
@@ -35,12 +35,6 @@ public class Controller implements Runnable {
                 .addConverterFactory(GsonConverterFactory.create(gson))
                 .build();
         Api api = retrofit.create(Api.class);
-
-        /*//КАКИЕ РАУНДЫ
-        RoundsResponse roundsResponse = api.getRoundsInfo(token).execute().body();
-        for (Round round : api.getRoundsInfo(token).execute().body().rounds) {
-            System.out.println(round.startAt + " " + round.endAt + " " + round.name);
-        }*/
 
         List<Block> prevBase = null;
 
@@ -131,18 +125,6 @@ public class Controller implements Runnable {
                     move = createMoveBase(changingEnvironmentResponse);
                 }
                 ActionsResponse actionsResponse = api.makeAction(new ActionsDTO(attacks, builds, move), token).execute().body();
-                if(actionsResponse != null) {
-                   /* if(actionsResponse.acceptedCommands.attack != null) {
-                        for(Attack a : actionsResponse.acceptedCommands.attack) {
-                            System.out.println("A " + a.target.x + " " + a.target.y);
-                        }
-                    } else { System.out.println("Accepted attacks null");}
-                    if(actionsResponse.acceptedCommands.build != null) {
-                        for(Build b : actionsResponse.acceptedCommands.build) {
-                            System.out.println("B " + b.coords.x + " " + b.coords.y);
-                        }
-                    } else { System.out.println("Accepted builds null");}*/
-                }
                 System.out.println("ОШИБКИ:");
                 if(actionsResponse != null && actionsResponse.errors != null) {
                     for(String err : actionsResponse.errors) {
@@ -195,7 +177,31 @@ public class Controller implements Runnable {
         }
 
         if(changingEnvironmentResponse.zombies != null) {
+            List<Zombie> bombers = new ArrayList<>();
+            List<Zombie> choos = new ArrayList<>();
+            List<Zombie> liner = new ArrayList<>();
+            List<Zombie> jagger = new ArrayList<>();
+            List<Zombie> others = new ArrayList<>();
+
             for(Zombie z : changingEnvironmentResponse.zombies) {
+                if(Objects.equals(z.type, "bomber")) {
+                    bombers.add(z);
+                }
+                else if(Objects.equals(z.type, "chaos_knight")) {
+                    choos.add(z);
+                }
+                else if(Objects.equals(z.type, "liner")) {
+                    liner.add(z);
+                }
+                else if(Objects.equals(z.type, "juggernaut")) {
+                    jagger.add(z);
+                }
+                else {
+                    others.add(z);
+                }
+            }
+
+            for(Zombie z : bombers) {
                 Integer currentHealth = z.health;
                 for(Block b : changingEnvironmentResponse.base) {
                     if(alreadyAttacked.contains(b)) {
@@ -212,6 +218,97 @@ public class Controller implements Runnable {
                     }
                 }
             }
+
+            for(Zombie z : choos) {
+                Integer currentHealth = z.health;
+                for(Block b : changingEnvironmentResponse.base) {
+                    if(alreadyAttacked.contains(b)) {
+                        continue;
+                    }
+                    if(Math.sqrt(Math.pow(z.x - b.x, 2) + Math.pow(z.y - b.y, 2)) < b.range) {
+                        attacks.add(new Attack(b.id, new Coords(z.x, z.y)));
+                        alreadyAttacked.add(b);
+                        if(currentHealth - b.attack <= 0) {
+                            break;
+                        } else {
+                            currentHealth -= b.attack;
+                        }
+                    }
+                }
+            }
+
+            for(Zombie z : liner) {
+                Integer currentHealth = z.health;
+                for(Block b : changingEnvironmentResponse.base) {
+                    if(alreadyAttacked.contains(b)) {
+                        continue;
+                    }
+                    if(Math.sqrt(Math.pow(z.x - b.x, 2) + Math.pow(z.y - b.y, 2)) < b.range) {
+                        attacks.add(new Attack(b.id, new Coords(z.x, z.y)));
+                        alreadyAttacked.add(b);
+                        if(currentHealth - b.attack <= 0) {
+                            break;
+                        } else {
+                            currentHealth -= b.attack;
+                        }
+                    }
+                }
+            }
+
+            for(Zombie z : jagger) {
+                Integer currentHealth = z.health;
+                for(Block b : changingEnvironmentResponse.base) {
+                    if(alreadyAttacked.contains(b)) {
+                        continue;
+                    }
+                    if(Math.sqrt(Math.pow(z.x - b.x, 2) + Math.pow(z.y - b.y, 2)) < b.range) {
+                        attacks.add(new Attack(b.id, new Coords(z.x, z.y)));
+                        alreadyAttacked.add(b);
+                        if(currentHealth - b.attack <= 0) {
+                            break;
+                        } else {
+                            currentHealth -= b.attack;
+                        }
+                    }
+                }
+            }
+
+            for(Zombie z : others) {
+                Integer currentHealth = z.health;
+                for(Block b : changingEnvironmentResponse.base) {
+                    if(alreadyAttacked.contains(b)) {
+                        continue;
+                    }
+                    if(Math.sqrt(Math.pow(z.x - b.x, 2) + Math.pow(z.y - b.y, 2)) < b.range) {
+                        attacks.add(new Attack(b.id, new Coords(z.x, z.y)));
+                        alreadyAttacked.add(b);
+                        if(currentHealth - b.attack <= 0) {
+                            break;
+                        } else {
+                            currentHealth -= b.attack;
+                        }
+                    }
+                }
+            }
+
+            //старая тактика
+            /*for(Zombie z : changingEnvironmentResponse.zombies) {
+                Integer currentHealth = z.health;
+                for(Block b : changingEnvironmentResponse.base) {
+                    if(alreadyAttacked.contains(b)) {
+                        continue;
+                    }
+                    if(Math.sqrt(Math.pow(z.x - b.x, 2) + Math.pow(z.y - b.y, 2)) < b.range) {
+                        attacks.add(new Attack(b.id, new Coords(z.x, z.y)));
+                        alreadyAttacked.add(b);
+                        if(currentHealth - b.attack <= 0) {
+                            break;
+                        } else {
+                            currentHealth -= b.attack;
+                        }
+                    }
+                }
+            }*/
         }
 
         if(changingEnvironmentResponse.enemyBlocks != null) {
@@ -236,64 +333,6 @@ public class Controller implements Runnable {
 
         return attacks;
     }
-
-    //GPT АТАКА
-   /* List<Attack> createAttack(ChangingEnvironmentResponse changingEnvironmentResponse) {
-        List<Block> alreadyAttacked = new ArrayList<>();
-        List<Attack> attacks = new ArrayList<>();
-
-        if (changingEnvironmentResponse.enemyBlocks != null) {
-            for (EnemyBlock e : changingEnvironmentResponse.enemyBlocks) {
-                if (e.isHead != null && e.isHead) {
-                    Integer currentHealth = e.health;
-                    // Создаем временный список блоков базы и сортируем его по расстоянию до объекта атаки
-                    List<Block> sortedBase = new ArrayList<>(changingEnvironmentResponse.base);
-                    sortedBase.sort((b1, b2) -> {
-                        double dist1 = Math.sqrt(Math.pow(e.x - b1.x, 2) + Math.pow(e.y - b1.y, 2));
-                        double dist2 = Math.sqrt(Math.pow(e.x - b2.x, 2) + Math.pow(e.y - b2.y, 2));
-                        return Double.compare(dist2, dist1); // Сортировка по убыванию расстояния
-                    });
-
-                    for (Block b : sortedBase) {
-                        if (!alreadyAttacked.contains(b) && Math.sqrt(Math.pow(e.x - b.x, 2) + Math.pow(e.y - b.y, 2)) < b.range) {
-                            attacks.add(new Attack(b.id, new Coords(e.x, e.y)));
-                            alreadyAttacked.add(b);
-                            if (currentHealth - b.attack <= 0) {
-                                break;
-                            }
-                            currentHealth -= b.attack;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (changingEnvironmentResponse.zombies != null) {
-            for (Zombie z : changingEnvironmentResponse.zombies) {
-                Integer currentHealth = z.health;
-                // Создаем временный список блоков базы и сортируем его по расстоянию до объекта атаки
-                List<Block> sortedBase = new ArrayList<>(changingEnvironmentResponse.base);
-                sortedBase.sort((b1, b2) -> {
-                    double dist1 = Math.sqrt(Math.pow(z.x - b1.x, 2) + Math.pow(z.y - b1.y, 2));
-                    double dist2 = Math.sqrt(Math.pow(z.x - b2.x, 2) + Math.pow(z.y - b2.y, 2));
-                    return Double.compare(dist2, dist1); // Сортировка по убыванию расстояния
-                });
-
-                for (Block b : sortedBase) {
-                    if (!alreadyAttacked.contains(b) && Math.sqrt(Math.pow(z.x - b.x, 2) + Math.pow(z.y - b.y, 2)) < b.range) {
-                        attacks.add(new Attack(b.id, new Coords(z.x, z.y)));
-                        alreadyAttacked.add(b);
-                        if (currentHealth - b.attack <= 0) {
-                            break;
-                        }
-                        currentHealth -= b.attack;
-                    }
-                }
-            }
-        }
-        return attacks;
-    }*/
-
 
     List<Coords> createBuild(
                      ChangingEnvironmentResponse changingEnvironmentResponse,
