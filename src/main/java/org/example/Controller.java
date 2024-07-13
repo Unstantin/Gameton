@@ -172,12 +172,32 @@ public class Controller implements Runnable {
                         if(Math.sqrt(Math.pow(e.x - b.x, 2) + Math.pow(e.y - b.y, 2)) < b.range) {
                             attacks.add(new Attack(b.id, new Coords(e.x, e.y)));
                             alreadyAttacked.add(b);
-                            changingEnvironmentResponse.base.remove(b);
                             if(currentHealth - b.attack <= 0) {
                                 break;
                             } else {
                                 currentHealth -= b.attack;
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+
+        if(changingEnvironmentResponse.enemyBlocks != null) {
+            for(EnemyBlock e : changingEnvironmentResponse.enemyBlocks) {
+                Integer currentHealth = e.health;
+                for(Block b : changingEnvironmentResponse.base) {
+                    if(alreadyAttacked.contains(b)) {
+                        continue;
+                    }
+                    if(Math.sqrt(Math.pow(e.x - b.x, 2) + Math.pow(e.y - b.y, 2)) < b.range) {
+                        attacks.add(new Attack(b.id, new Coords(e.x, e.y)));
+                        alreadyAttacked.add(b);
+                        if(currentHealth - b.attack <= 0) {
+                            break;
+                        } else {
+                            currentHealth -= b.attack;
                         }
                     }
                 }
@@ -193,26 +213,6 @@ public class Controller implements Runnable {
                     }
                     if(Math.sqrt(Math.pow(z.x - b.x, 2) + Math.pow(z.y - b.y, 2)) < b.range) {
                         attacks.add(new Attack(b.id, new Coords(z.x, z.y)));
-                        alreadyAttacked.add(b);
-                        if(currentHealth - b.attack <= 0) {
-                            break;
-                        } else {
-                            currentHealth -= b.attack;
-                        }
-                    }
-                }
-            }
-        }
-
-        if(changingEnvironmentResponse.enemyBlocks != null) {
-            for(EnemyBlock e : changingEnvironmentResponse.enemyBlocks) {
-                Integer currentHealth = e.health;
-                for(Block b : changingEnvironmentResponse.base) {
-                    if(alreadyAttacked.contains(b)) {
-                        continue;
-                    }
-                    if(Math.sqrt(Math.pow(e.x - b.x, 2) + Math.pow(e.y - b.y, 2)) < b.range) {
-                        attacks.add(new Attack(b.id, new Coords(e.x, e.y)));
                         alreadyAttacked.add(b);
                         if(currentHealth - b.attack <= 0) {
                             break;
